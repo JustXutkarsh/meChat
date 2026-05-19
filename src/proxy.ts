@@ -2,8 +2,6 @@ import { clerkMiddleware } from "@clerk/nextjs/server";
 import type { NextFetchEvent, NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-const clerkProxy = clerkMiddleware();
-
 export function proxy(req: NextRequest, event: NextFetchEvent) {
   try {
     // If Clerk env vars are missing in a Vercel environment, avoid global 500.
@@ -11,6 +9,8 @@ export function proxy(req: NextRequest, event: NextFetchEvent) {
       return NextResponse.next();
     }
 
+    // Initialize lazily so any Clerk init errors are catchable here.
+    const clerkProxy = clerkMiddleware();
     return clerkProxy(req, event);
   } catch (error) {
     console.error("Clerk proxy invocation failed:", error);

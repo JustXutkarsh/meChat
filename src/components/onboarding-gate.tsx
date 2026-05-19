@@ -14,25 +14,37 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const run = async () => {
-      if (!isLoaded || !user) return;
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("username, full_name, age")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const completed = Boolean(data?.username && data?.full_name && data?.age);
-
-      if (!completed && pathname !== "/onboarding") {
-        router.replace("/onboarding");
+      if (!isLoaded) return;
+      if (!user) {
+        setChecking(false);
+        router.replace("/sign-in");
+        return;
       }
 
-      if (completed && pathname === "/onboarding") {
-        router.replace("/chats");
-      }
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("username, full_name, age")
+          .eq("id", user.id)
+          .maybeSingle();
 
-      setChecking(false);
+        const completed = Boolean(data?.username && data?.full_name && data?.age);
+
+        if (!completed && pathname !== "/onboarding") {
+          router.replace("/onboarding");
+        }
+
+        if (completed && pathname === "/onboarding") {
+          router.replace("/chats");
+        }
+      } catch {
+        // If profile lookup fails (e.g. temporary API/token issue), keep app usable.
+        if (pathname !== "/onboarding") {
+          router.replace("/onboarding");
+        }
+      } finally {
+        setChecking(false);
+      }
     };
 
     void run();

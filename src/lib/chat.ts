@@ -91,20 +91,19 @@ export async function getOrCreateConversation(
   const existing = (otherRows ?? []).find((row) => currentIds.has(row.conversation_id));
   if (existing) return existing.conversation_id;
 
-  const { data: conversation, error: conversationError } = await supabase
+  const conversationId = crypto.randomUUID();
+  const { error: conversationError } = await supabase
     .from("conversations")
-    .insert({})
-    .select("id")
-    .single();
-  if (conversationError || !conversation) throw new Error(conversationError?.message || "Create failed");
+    .insert({ id: conversationId });
+  if (conversationError) throw new Error(conversationError.message);
 
   const { error: participantsError } = await supabase.from("conversation_participants").insert([
-    { conversation_id: conversation.id, user_id: currentUserId },
-    { conversation_id: conversation.id, user_id: otherUserId },
+    { conversation_id: conversationId, user_id: currentUserId },
+    { conversation_id: conversationId, user_id: otherUserId },
   ]);
   if (participantsError) throw new Error(participantsError.message);
 
-  return conversation.id;
+  return conversationId;
 }
 
 export async function fetchMessages(supabase: SupabaseClient, conversationId: string) {

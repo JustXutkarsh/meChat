@@ -2,16 +2,21 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { AppShell } from "@/components/ui/app-shell";
 import { ContactListItem } from "@/components/ui/contact-list-item";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchBar } from "@/components/ui/search-bar";
 import { SkeletonChatItem } from "@/components/ui/skeleton-chat-item";
-import { getOrCreateConversation, searchUsers } from "@/lib/chat";
+import {
+  acceptFriendRequest,
+  getOrCreateConversation,
+  searchUsers,
+  sendFriendRequest,
+} from "@/lib/chat";
 import { useSupabaseClient } from "@/lib/supabase";
-import type { Profile } from "@/lib/types";
+import type { SearchUserItem } from "@/lib/types";
 
 export default function NewChatPage() {
   const { user } = useUser();
@@ -19,16 +24,21 @@ export default function NewChatPage() {
   const supabase = useSupabaseClient();
 
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Profile[]>([]);
+  const [results, setResults] = useState<SearchUserItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async (search: string) => {
+    if (!user) return;
+    setResults(await searchUsers(supabase, user.id, search));
+  }, [supabase, user]);
 
   useEffect(() => {
     const run = async () => {
       if (!user) return;
       try {
         setLoading(true);
-        setResults(await searchUsers(supabase, user.id, query));
+        await refresh(query);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not load users.");
       } finally {
@@ -38,16 +48,48 @@ export default function NewChatPage() {
 
     const t = setTimeout(() => void run(), 200);
     return () => clearTimeout(t);
-  }, [query, supabase, user]);
+  }, [query, refresh, user]);
 
-  const handleStart = async (otherUserId: string) => {
+  const handleAdd = async (otherUserId: string) => {
+    if (!user) return;
+    try {
+      setError(null);
+      await sendFriendRequest(
+        supabase,
+        user.id,
+        otherUserId,
+        user.fullName || user.username || "Someone"
+      );
+      await refresh(query);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send request.");
+    }
+  };
+
+  const handleAccept = async (requestId: string) => {
+    if (!user) return;
+    try {
+      setError(null);
+      const conversationId = await acceptFriendRequest(
+        supabase,
+        requestId,
+        user.id,
+        user.fullName || user.username || "Your friend"
+      );
+      router.push(`/chats/${conversationId}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not accept request.");
+    }
+  };
+
+  const handleMessage = async (otherUserId: string) => {
     if (!user) return;
     try {
       setError(null);
       const id = await getOrCreateConversation(supabase, user.id, otherUserId);
       router.push(`/chats/${id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create conversation.");
+      setError(e instanceof Error ? e.message : "Could not open conversation.");
     }
   };
 
@@ -70,7 +112,15 @@ export default function NewChatPage() {
           ) : results.length === 0 ? (
             <EmptyState title="No users found" description="Try a different username." />
           ) : (
-            results.map((profile) => <ContactListItem key={profile.id} profile={profile} onClick={() => void handleStart(profile.id)} />)
+            results.map((item) => (
+              <ContactListItem
+                key={item.profile.id}
+                item={item}
+                onAdd={() => void handleAdd(item.profile.id)}
+                onAccept={() => item.request?.id ? void handleAccept(item.request.id) : undefined}
+                onMessage={() => void handleMessage(item.profile.id)}
+              />
+            ))
           )}
         </section>
       </main>

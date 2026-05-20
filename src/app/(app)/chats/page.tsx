@@ -1,32 +1,49 @@
 "use client";
 
+import { formatDistanceToNow } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { AppShell } from "@/components/ui/app-shell";
+import { Avatar } from "@/components/avatar";
 import { ChatListHeader } from "@/components/ui/chat-list-header";
 import { ChatListItem } from "@/components/ui/chat-list-item";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchBar } from "@/components/ui/search-bar";
 import { SkeletonChatItem } from "@/components/ui/skeleton-chat-item";
-import { getChatList } from "@/lib/chat";
+import {
+  acceptFriendRequest,
+  fetchNotifications,
+  getChatList,
+  markNotificationsRead,
+  rejectFriendRequest,
+} from "@/lib/chat";
 import { useSupabaseClient } from "@/lib/supabase";
-import type { ChatListItem as TChatListItem } from "@/lib/types";
+import type { ChatListItem as TChatListItem, NotificationItem, Profile } from "@/lib/types";
 
 export default function ChatsPage() {
   const { user } = useUser();
   const supabase = useSupabaseClient();
+  const router = useRouter();
 
   const [chats, setChats] = useState<TChatListItem[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [actorProfiles, setActorProfiles] = useState<Record<string, Profile>>({});
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const hasLoadedOnceRef = useRef(false);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const unreadNotificationCount = useMemo(
+    () => notifications.filter((notification) => !notification.is_read).length,
+    [notifications]
+  );
+
   useEffect(() => {
     if (!user?.id) return;
     const userId = user.id;
-
     let isMounted = true;
 
     async function loadChats(background = false) {
@@ -48,7 +65,30 @@ export default function ChatsPage() {
       }
     }
 
+    async function loadNotifications() {
+      try {
+        const items = await fetchNotifications(supabase, userId);
+        if (!isMounted) return;
+        setNotifications(items);
+
+        const actorIds = [...new Set(items.map((item) => item.actor_id))];
+        if (!actorIds.length) return;
+
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name, username, age, email, phone, avatar_url")
+          .in("id", actorIds);
+
+        if (!profiles || !isMounted) return;
+        const mapped = Object.fromEntries((profiles as Profile[]).map((profile) => [profile.id, profile]));
+        setActorProfiles(mapped);
+      } catch {
+        // keep notification state stable
+      }
+    }
+
     void loadChats(false);
+    void loadNotifications();
 
     return () => {
       isMounted = false;
@@ -59,7 +99,7 @@ export default function ChatsPage() {
     if (!user?.id) return;
     const userId = user.id;
 
-    const channel = supabase
+    const conversationsChannel = supabase
       .channel(`chat-list:${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, async () => {
         try {
@@ -67,27 +107,110 @@ export default function ChatsPage() {
           setChats(data || []);
           setHasLoadedOnce(true);
         } catch {
-          // keep current state stable
+          // keep state stable
         }
       })
       .subscribe();
 
+    const notificationsChannel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const incoming = payload.new as NotificationItem;
+          setNotifications((prev) => [incoming, ...prev]);
+          void (async () => {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("id, full_name, username, age, email, phone, avatar_url")
+              .eq("id", incoming.actor_id)
+              .maybeSingle();
+            if (profile) {
+              setActorProfiles((prev) => ({ ...prev, [incoming.actor_id]: profile as Profile }));
+            }
+          })();
+        }
+      )
+      .subscribe();
+
     return () => {
-      void supabase.removeChannel(channel);
+      void supabase.removeChannel(conversationsChannel);
+      void supabase.removeChannel(notificationsChannel);
     };
   }, [supabase, user?.id, user]);
+
+  async function handleOpenNotifications() {
+    setIsNotificationsOpen((prev) => !prev);
+    if (!isNotificationsOpen && user?.id) {
+      void markNotificationsRead(supabase, user.id);
+      setNotifications((prev) => prev.map((notification) => ({ ...notification, is_read: true })));
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     if (!q) return chats;
-    return chats.filter((chat) => `${chat.otherUser.full_name ?? ""} ${chat.otherUser.username ?? ""} ${chat.lastMessage ?? ""}`.toLowerCase().includes(q));
+    return chats.filter((chat) =>
+      `${chat.otherUser.full_name ?? ""} ${chat.otherUser.username ?? ""} ${chat.lastMessage ?? ""}`
+        .toLowerCase()
+        .includes(q)
+    );
   }, [chats, query]);
+
+  async function handleAccept(notification: NotificationItem) {
+    if (!user?.id) return;
+    const requestId = String(notification.metadata?.request_id ?? "");
+    if (!requestId) return;
+
+    try {
+      const conversationId = await acceptFriendRequest(
+        supabase,
+        requestId,
+        user.id,
+        user.fullName || user.username || "Your friend"
+      );
+      router.push(`/chats/${conversationId}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not accept request.");
+    }
+  }
+
+  async function handleReject(notification: NotificationItem) {
+    if (!user?.id) return;
+    const requestId = String(notification.metadata?.request_id ?? "");
+    if (!requestId) return;
+
+    try {
+      await rejectFriendRequest(supabase, requestId, user.id);
+      setNotifications((prev) => prev.filter((item) => item.id !== notification.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not reject request.");
+    }
+  }
 
   return (
     <AppShell>
       <main className="flex min-h-dvh flex-col">
         <ChatListHeader />
-        <div className="px-3 py-2"><SearchBar value={query} onChange={setQuery} placeholder="Search chats" /></div>
+
+        <div className="flex items-center gap-2 px-3 py-2">
+          <div className="flex-1">
+            <SearchBar value={query} onChange={setQuery} placeholder="Search chats" />
+          </div>
+          <button
+            onClick={() => void handleOpenNotifications()}
+            className="relative grid h-11 w-11 place-items-center rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] text-lg"
+            aria-label="Notifications"
+          >
+            🔔
+            {unreadNotificationCount > 0 ? (
+              <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-[var(--primary)] px-1 text-[10px] font-semibold text-white">
+                {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
+              </span>
+            ) : null}
+          </button>
+        </div>
 
         {error ? <div className="mx-3 rounded-xl border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">{error}</div> : null}
 
@@ -101,9 +224,60 @@ export default function ChatsPage() {
           ) : hasLoadedOnce && filtered.length === 0 ? (
             <EmptyState title="No chats yet" description="Start a new conversation." actionHref="/new-chat" actionLabel="Start chat" />
           ) : (
-            filtered.map((chat) => <ChatListItem key={chat.conversationId} chat={chat} />)
+            filtered.map((chat) => <ChatListItem key={chat.conversationId} chat={chat} currentUserId={user?.id ?? ""} />)
           )}
         </section>
+
+        {isNotificationsOpen ? (
+          <div className="absolute inset-0 z-50 bg-black/45" onClick={() => setIsNotificationsOpen(false)}>
+            <div className="absolute bottom-0 left-0 right-0 max-h-[70dvh] overflow-y-auto rounded-t-3xl border-t border-[var(--border)] bg-[var(--surface)] p-3" onClick={(e) => e.stopPropagation()}>
+              <h2 className="mb-3 text-lg font-semibold">Notifications</h2>
+              {notifications.length === 0 ? (
+                <p className="text-sm text-[var(--text-secondary)]">No notifications yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {notifications.map((notification) => {
+                    const actor = actorProfiles[notification.actor_id];
+                    return (
+                      <div key={notification.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-3">
+                        <div className="flex items-start gap-2">
+                          <Avatar
+                            name={actor?.full_name || actor?.username || "Someone"}
+                            imageUrl={actor?.avatar_url || null}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold">{notification.title}</p>
+                            <p className="text-xs text-[var(--text-secondary)]">{notification.body}</p>
+                            <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                              {actor?.full_name || actor?.username || "Someone"} · {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                            </p>
+                          </div>
+                        </div>
+                        {notification.type === "friend_request" ? (
+                          <div className="mt-2 flex items-center gap-2">
+                            <button onClick={() => void handleAccept(notification)} className="rounded-full bg-[var(--whatsapp-green)] px-3 py-1 text-xs font-semibold text-white">Accept</button>
+                            <button onClick={() => void handleReject(notification)} className="rounded-full border border-red-400/60 px-3 py-1 text-xs text-red-300">Reject</button>
+                          </div>
+                        ) : null}
+                        {notification.type === "friend_request_accepted" ? (
+                          <button
+                            onClick={() => {
+                              const conversationId = String(notification.metadata?.conversation_id ?? "");
+                              if (conversationId) router.push(`/chats/${conversationId}`);
+                            }}
+                            className="mt-2 rounded-full bg-[var(--primary)] px-3 py-1 text-xs font-semibold text-white"
+                          >
+                            Message
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </main>
     </AppShell>
   );

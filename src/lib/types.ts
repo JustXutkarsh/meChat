@@ -23,5 +23,38 @@ export type ChatListItem = {
   otherUser: Profile;
   lastMessage: string | null;
   lastMessageAt: string | null;
+  lastMessageSenderId: string | null;
+  unreadCount: number;
   createdAt: string;
+};
+
+export type FriendRequestStatus = "pending" | "accepted" | "rejected";
+
+export type FriendRequest = {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  status: FriendRequestStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SearchUserItem = {
+  profile: Profile;
+  requestState: "none" | "requested" | "incoming" | "accepted";
+  request: FriendRequest | null;
+};
+
+export type NotificationType = "friend_request" | "friend_request_accepted" | "message";
+
+export type NotificationItem = {
+  id: string;
+  user_id: string;
+  actor_id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  is_read: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
 };

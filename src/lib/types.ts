@@ -45,7 +45,7 @@ export type SearchUserItem = {
   request: FriendRequest | null;
 };
 
-export type NotificationType = "friend_request" | "friend_request_accepted" | "message";
+export type NotificationType = "friend_request" | "friend_request_accepted" | "message" | "video_call" | "missed_call";
 
 export type NotificationItem = {
   id: string;

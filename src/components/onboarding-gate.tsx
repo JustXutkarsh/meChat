@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import { CallRuntimeProvider } from "@/components/calls/call-runtime-provider";
 import { useSupabaseClient } from "@/lib/supabase";
 
 export function OnboardingGate({ children }: { children: React.ReactNode }) {
@@ -54,5 +55,5 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
     return <div className="grid min-h-screen place-items-center text-gray-600">Loading...</div>;
   }
 
-  return <>{children}</>;
+  return <CallRuntimeProvider>{children}</CallRuntimeProvider>;
 }

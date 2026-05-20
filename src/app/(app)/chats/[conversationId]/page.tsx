@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { AppShell } from "@/components/ui/app-shell";
 import { Avatar } from "@/components/avatar";
+import { useCallRuntime } from "@/components/calls/call-runtime-provider";
 import { ChatHeader } from "@/components/ui/chat-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -27,6 +28,7 @@ export default function ChatPage() {
   const conversationId = params.conversationId;
   const { user } = useUser();
   const supabase = useSupabaseClient();
+  const { startVideoCall } = useCallRuntime();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
@@ -188,6 +190,13 @@ export default function ChatPage() {
           name={otherUser?.full_name || "Chat"}
           username={otherUser?.username}
           imageUrl={otherUser?.avatar_url}
+          onVideoCall={() => {
+            if (!otherUser) return;
+            void startVideoCall({ conversationId, receiverId: otherUser.id }).catch((e) =>
+              setError(e instanceof Error ? e.message : "Could not start call.")
+            );
+          }}
+          videoCallDisabled={!otherUser || permission !== "allowed"}
           onViewContact={() => setShowContact(true)}
           onSearchInChat={() => setSearchOpen((v) => !v)}
           onClearChat={() => setConfirmAction("clear")}

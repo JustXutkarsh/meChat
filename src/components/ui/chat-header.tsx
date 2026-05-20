@@ -7,6 +7,8 @@ export function ChatHeader({
   username,
   imageUrl,
   onViewContact,
+  onVideoCall,
+  videoCallDisabled,
   onSearchInChat,
   onClearChat,
   onRemoveFriend,
@@ -16,6 +18,8 @@ export function ChatHeader({
   username?: string | null;
   imageUrl?: string | null;
   onViewContact?: () => void;
+  onVideoCall?: () => void;
+  videoCallDisabled?: boolean;
   onSearchInChat?: () => void;
   onClearChat?: () => void;
   onRemoveFriend?: () => void;
@@ -34,7 +38,17 @@ export function ChatHeader({
             <p className="text-xs text-[var(--text-secondary)]">{username ? `@${username}` : "meChat"}</p>
           </div>
         </div>
-        <div className="relative">
+        <div className="relative flex items-center gap-2">
+          {onVideoCall ? (
+            <button
+              className={`grid h-8 w-8 place-items-center rounded-full border border-[var(--border)] bg-[rgba(15,23,42,0.66)] text-[var(--text-secondary)] transition active:scale-95 ${videoCallDisabled ? "opacity-40" : ""}`}
+              aria-label="Video call"
+              onClick={onVideoCall}
+              disabled={videoCallDisabled}
+            >
+              📹
+            </button>
+          ) : null}
           <button
             className="grid h-8 w-8 place-items-center rounded-full border border-[var(--border)] bg-[rgba(15,23,42,0.66)] text-[var(--text-secondary)] transition active:scale-95"
             aria-label="More"

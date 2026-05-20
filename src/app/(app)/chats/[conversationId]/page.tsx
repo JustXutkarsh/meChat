@@ -208,8 +208,9 @@ export default function ChatPage() {
 
         <section
           ref={containerRef}
-          className="flex-1 space-y-1 overflow-y-auto bg-[radial-gradient(circle_at_top,#15212a_0%,#0B141A_45%,#0B141A_100%)] p-3"
+          className="relative flex-1 space-y-1 overflow-y-auto bg-[radial-gradient(circle_at_top,#111a36_0%,#090D18_42%,#05060A_100%)] p-3"
         >
+          <div className="pointer-events-none absolute inset-0 -z-10 opacity-25 [background-image:radial-gradient(rgba(148,163,184,0.25)_0.8px,transparent_0.8px)] [background-size:16px_16px]" />
           {loading ? <LoadingSpinner label="Loading messages..." /> : null}
           {!loading && displayedMessages.length === 0 ? (
             <EmptyState title="Start chatting" description="Send your first message." />

@@ -35,6 +35,7 @@ export default function ChatsPage() {
   const hasLoadedOnceRef = useRef(false);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [bellWiggle, setBellWiggle] = useState(false);
 
   const unreadNotificationCount = useMemo(
     () => notifications.filter((notification) => !notification.is_read).length,
@@ -142,6 +143,8 @@ export default function ChatsPage() {
         (payload) => {
           const incoming = payload.new as NotificationItem;
           setNotifications((prev) => [incoming, ...prev]);
+          setBellWiggle(true);
+          setTimeout(() => setBellWiggle(false), 700);
           void (async () => {
             const { data: profile } = await supabase
               .from("profiles")
@@ -219,16 +222,16 @@ export default function ChatsPage() {
 
         <div className="flex items-center gap-2 px-3 py-2">
           <div className="flex-1">
-            <SearchBar value={query} onChange={setQuery} placeholder="Search chats" />
+            <SearchBar value={query} onChange={setQuery} placeholder="Search people, vibes, chats..." />
           </div>
           <button
             onClick={() => void handleOpenNotifications()}
-            className="relative grid h-11 w-11 place-items-center rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] text-lg"
+            className={`relative grid h-11 w-11 place-items-center rounded-full border border-[var(--border)] bg-[rgba(15,23,42,0.72)] text-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition active:scale-95 ${bellWiggle ? "[animation:bell-wiggle_0.6s_ease]" : ""}`}
             aria-label="Notifications"
           >
             🔔
             {unreadNotificationCount > 0 ? (
-              <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-[var(--primary)] px-1 text-[10px] font-semibold text-white">
+              <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-[linear-gradient(135deg,#8B5CF6,#EC4899)] px-1 text-[10px] font-semibold text-white shadow-[0_0_16px_rgba(236,72,153,0.4)] [animation:pulse-soft_1.6s_ease-in-out_infinite]">
                 {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
               </span>
             ) : null}
@@ -245,7 +248,7 @@ export default function ChatsPage() {
               <SkeletonChatItem />
             </>
           ) : hasLoadedOnce && filtered.length === 0 ? (
-            <EmptyState title="No chats yet" description="Start a new conversation." actionHref="/new-chat" actionLabel="Start chat" />
+            <EmptyState title="No chaos yet" description="Start a chat and make this place less lonely." actionHref="/new-chat" actionLabel="Start a vibe" />
           ) : (
             filtered.map((chat) => <ChatListItem key={chat.conversationId} chat={chat} currentUserId={user?.id ?? ""} />)
           )}
@@ -253,7 +256,7 @@ export default function ChatsPage() {
 
         {isNotificationsOpen ? (
           <div className="absolute inset-0 z-50 bg-black/45" onClick={() => setIsNotificationsOpen(false)}>
-            <div className="absolute bottom-0 left-0 right-0 max-h-[70dvh] overflow-y-auto rounded-t-3xl border-t border-[var(--border)] bg-[var(--surface)] p-3" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute bottom-0 left-0 right-0 max-h-[70dvh] overflow-y-auto rounded-t-3xl border-t border-[var(--border)] bg-[rgba(11,17,32,0.86)] p-3 backdrop-blur-2xl animate-enter" onClick={(e) => e.stopPropagation()}>
               <h2 className="mb-3 text-lg font-semibold">Notifications</h2>
               {notifications.length === 0 ? (
                 <p className="text-sm text-[var(--text-secondary)]">No notifications yet.</p>
@@ -262,7 +265,7 @@ export default function ChatsPage() {
                   {notifications.map((notification) => {
                     const actor = actorProfiles[notification.actor_id];
                     return (
-                      <div key={notification.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-3">
+                      <div key={notification.id} className="rounded-2xl border border-[var(--border)] bg-[rgba(15,23,42,0.72)] p-3">
                         <div className="flex items-start gap-2">
                           <Avatar
                             name={actor?.full_name || actor?.username || "Someone"}

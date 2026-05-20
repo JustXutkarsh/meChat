@@ -48,20 +48,20 @@ export function MessageInput({
   }
 
   return (
-    <div ref={containerRef} className="safe-bottom border-t border-[var(--border)] bg-[var(--surface)] px-3 pb-3 pt-2">
+    <div ref={containerRef} className="safe-bottom border-t border-[var(--border)] bg-[rgba(11,17,32,0.76)] px-3 pb-3 pt-2 backdrop-blur-xl">
       {isEmojiOpen ? (
-        <div className="mb-2 max-h-48 overflow-y-auto rounded-t-2xl border border-[var(--border)] bg-[#15212a] p-2">
+        <div className="mb-2 max-h-48 overflow-y-auto rounded-t-3xl border border-[var(--border)] bg-[rgba(15,23,42,0.92)] p-2 shadow-[0_-20px_80px_rgba(0,0,0,0.45)] animate-enter">
           <div className="grid grid-cols-8 gap-1">
             {EMOJIS.map((emoji) => (
-              <button key={emoji} onClick={() => onPickEmoji(emoji)} className="rounded-md p-1 text-xl hover:bg-[var(--surface-hover)]">
+              <button key={emoji} onClick={() => onPickEmoji(emoji)} className="rounded-md p-1 text-xl transition-transform hover:scale-110 hover:bg-[var(--surface-hover)] active:scale-95">
                 {emoji}
               </button>
             ))}
           </div>
         </div>
       ) : null}
-      <div className="flex items-center gap-2 rounded-full bg-[var(--surface-elevated)] p-1.5">
-        <button onClick={() => setIsEmojiOpen((v) => !v)} className="pl-2 text-[var(--text-secondary)]" aria-label="Open emoji picker">🙂</button>
+      <div className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(15,23,42,0.88)] p-1.5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+        <button onClick={() => setIsEmojiOpen((v) => !v)} className="pl-2 text-[var(--text-secondary)] transition-transform hover:scale-110 active:scale-95" aria-label="Open emoji picker">🙂</button>
         <textarea
           ref={textRef}
           value={value}
@@ -85,7 +85,7 @@ export function MessageInput({
             onSend();
             setIsEmojiOpen(false);
           }}
-          className="grid h-9 w-9 place-items-center rounded-full bg-[var(--primary)] text-white transition disabled:opacity-40"
+          className={`grid h-9 w-9 place-items-center rounded-full text-white transition active:scale-95 disabled:opacity-40 ${disabled ? "bg-[var(--primary)]" : "neon-button"}`}
           aria-label="Send message"
         >
           ➤

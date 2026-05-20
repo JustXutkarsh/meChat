@@ -5,8 +5,8 @@ import { GradientLogo } from "@/components/ui/gradient-logo";
 
 export default function SignInPage() {
   return (
-    <AppShell className="grid place-items-center px-4 py-8">
-      <div className="w-full rounded-3xl border border-[var(--border)] bg-[linear-gradient(180deg,#111821,#0B0F14)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+    <AppShell className="min-h-dvh overflow-y-auto px-4 py-6">
+      <div className="mx-auto w-full max-w-[420px] rounded-3xl border border-[var(--border)] bg-[linear-gradient(180deg,#111821,#0B0F14)] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
         <div className="mb-5 flex flex-col items-center text-center">
           <GradientLogo size="lg" />
           <h1 className="mt-3 text-2xl font-bold">meChat</h1>
@@ -24,8 +24,23 @@ export default function SignInPage() {
           path="/sign-in"
           signUpUrl="/sign-up"
           appearance={{
-            variables: { colorBackground: "#0B0F14", colorText: "#F8FAFC", colorInputBackground: "#111821", colorInputText: "#F8FAFC", colorPrimary: "#7C3AED", colorDanger: "#EF4444", borderRadius: "0.9rem" },
-            elements: { card: "!shadow-none !border !border-[#1F2A37] !bg-[#0B0F14]", footer: "hidden" },
+            variables: {
+              colorBackground: "#0B0F14",
+              colorText: "#F8FAFC",
+              colorTextSecondary: "#94A3B8",
+              colorInputBackground: "#111821",
+              colorInputText: "#F8FAFC",
+              colorPrimary: "#7C3AED",
+              colorDanger: "#EF4444",
+              borderRadius: "0.9rem",
+            },
+            elements: {
+              rootBox: "w-full",
+              cardBox: "w-full",
+              card: "!w-full !shadow-none !border !border-[#1F2A37] !bg-[#0B0F14]",
+              footer: "hidden",
+              formButtonPrimary: "!text-white",
+            },
           }}
         />
 

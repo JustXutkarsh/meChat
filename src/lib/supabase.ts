@@ -1,16 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
 import { useAuth } from "@clerk/nextjs";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export function useSupabaseClient() {
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
   const url = supabaseUrl || "http://127.0.0.1:54321";
   const anon = supabaseAnonKey || "missing-anon-key";
 
-  return useMemo(
+  const client = useMemo(
     () =>
       createClient(url, anon, {
         global: {
@@ -24,4 +24,19 @@ export function useSupabaseClient() {
       }),
     [anon, getToken, url],
   );
+
+  useEffect(() => {
+    let active = true;
+    const applyRealtimeAuth = async () => {
+      const token = await getToken({ template: "supabase" });
+      if (!active || !token) return;
+      await client.realtime.setAuth(token);
+    };
+    void applyRealtimeAuth();
+    return () => {
+      active = false;
+    };
+  }, [client, getToken, userId]);
+
+  return client;
 }

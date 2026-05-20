@@ -112,6 +112,28 @@ export default function ChatsPage() {
       })
       .subscribe();
 
+    const messagesChannel = supabase
+      .channel(`chat-list-messages:${userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, async (payload) => {
+        const incoming = payload.new as { id: string; conversation_id: string; sender_id: string; content: string; created_at: string };
+        setChats((prev) => {
+          const index = prev.findIndex((chat) => chat.conversationId === incoming.conversation_id);
+          if (index === -1) return prev;
+          const existing = prev[index];
+          const updated = {
+            ...existing,
+            lastMessage: incoming.content,
+            lastMessageAt: incoming.created_at,
+            lastMessageSenderId: incoming.sender_id,
+            unreadCount: incoming.sender_id === userId ? existing.unreadCount : existing.unreadCount + 1,
+          };
+          const next = [...prev];
+          next.splice(index, 1);
+          return [updated, ...next];
+        });
+      })
+      .subscribe();
+
     const notificationsChannel = supabase
       .channel(`notifications:${userId}`)
       .on(
@@ -136,6 +158,7 @@ export default function ChatsPage() {
 
     return () => {
       void supabase.removeChannel(conversationsChannel);
+      void supabase.removeChannel(messagesChannel);
       void supabase.removeChannel(notificationsChannel);
     };
   }, [supabase, user?.id, user]);

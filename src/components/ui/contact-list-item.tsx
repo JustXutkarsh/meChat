@@ -21,7 +21,7 @@ export function ContactListItem({
         <p className="truncate text-[15px] font-semibold">{profile.full_name || "User"}</p>
         <p className="truncate text-xs text-[var(--text-secondary)]">{profile.username ? `@${profile.username}` : "Set username from profile"}</p>
       </div>
-      {requestState === "none" ? (
+      {requestState === "none" || requestState === "removed" ? (
         <button onClick={onAdd} className="rounded-full border border-[var(--primary)] px-3 py-1 text-xs font-semibold text-[var(--primary)]">Add</button>
       ) : null}
       {requestState === "requested" ? (

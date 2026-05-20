@@ -28,7 +28,7 @@ export type ChatListItem = {
   createdAt: string;
 };
 
-export type FriendRequestStatus = "pending" | "accepted" | "rejected";
+export type FriendRequestStatus = "pending" | "accepted" | "rejected" | "removed";
 
 export type FriendRequest = {
   id: string;
@@ -41,7 +41,7 @@ export type FriendRequest = {
 
 export type SearchUserItem = {
   profile: Profile;
-  requestState: "none" | "requested" | "incoming" | "accepted";
+  requestState: "none" | "requested" | "incoming" | "accepted" | "removed";
   request: FriendRequest | null;
 };
 
@@ -58,3 +58,5 @@ export type NotificationItem = {
   metadata: Record<string, unknown>;
   created_at: string;
 };
+
+export type ChatPermissionState = "allowed" | "not_friends" | "blocked_by_me" | "blocked_by_them";

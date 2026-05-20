@@ -1,4 +1,5 @@
 import type {
+  ChatPermissionState,
   ChatListItem,
   FriendRequest,
   Message,
@@ -47,6 +48,7 @@ export async function searchUsers(supabase: SupabaseClient, currentUserId: strin
 
     if (!request) return { profile, requestState: "none", request: null } as SearchUserItem;
     if (request.status === "accepted") return { profile, requestState: "accepted", request } as SearchUserItem;
+    if (request.status === "removed") return { profile, requestState: "removed", request } as SearchUserItem;
     if (request.status === "pending" && request.sender_id === currentUserId) {
       return { profile, requestState: "requested", request } as SearchUserItem;
     }
@@ -170,12 +172,30 @@ export async function sendFriendRequest(
   if (existingRelation?.status === "pending") throw new Error("Friend request already pending.");
   if (existingRelation?.status === "accepted") throw new Error("You are already connected.");
 
-  const { data: inserted, error } = await supabase
-    .from("friend_requests")
-    .insert({ sender_id: currentUserId, receiver_id: receiverId, status: "pending" })
-    .select("id")
-    .single();
-  if (error || !inserted) throw new Error(error?.message || "Could not send request.");
+  let requestId: string;
+  if (existingRelation) {
+    const { data: updated, error: updateError } = await supabase
+      .from("friend_requests")
+      .update({
+        sender_id: currentUserId,
+        receiver_id: receiverId,
+        status: "pending",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existingRelation.id)
+      .select("id")
+      .single();
+    if (updateError || !updated) throw new Error(updateError?.message || "Could not re-send request.");
+    requestId = updated.id as string;
+  } else {
+    const { data: inserted, error } = await supabase
+      .from("friend_requests")
+      .insert({ sender_id: currentUserId, receiver_id: receiverId, status: "pending" })
+      .select("id")
+      .single();
+    if (error || !inserted) throw new Error(error?.message || "Could not send request.");
+    requestId = inserted.id as string;
+  }
 
   await createNotification(
     supabase,
@@ -184,10 +204,10 @@ export async function sendFriendRequest(
     "friend_request",
     "New friend request",
     `${senderName} sent you a friend request`,
-    { request_id: inserted.id }
+    { request_id: requestId }
   );
 
-  return inserted.id as string;
+  return requestId;
 }
 
 export async function getOrCreateConversation(
@@ -323,6 +343,143 @@ export async function fetchMessages(supabase: SupabaseClient, conversationId: st
   return (data ?? []) as Message[];
 }
 
+export async function fetchMessagesAfterClear(
+  supabase: SupabaseClient,
+  conversationId: string,
+  currentUserId: string
+) {
+  const { data: clearRow } = await supabase
+    .from("conversation_clears")
+    .select("cleared_at")
+    .eq("conversation_id", conversationId)
+    .eq("user_id", currentUserId)
+    .maybeSingle();
+
+  let query = supabase
+    .from("messages")
+    .select("id, conversation_id, sender_id, content, message_type, is_read, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+
+  if (clearRow?.cleared_at) query = query.gt("created_at", clearRow.cleared_at);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Message[];
+}
+
+export async function clearChatForUser(
+  supabase: SupabaseClient,
+  conversationId: string,
+  currentUserId: string
+) {
+  const nowIso = new Date().toISOString();
+  const { error } = await supabase
+    .from("conversation_clears")
+    .upsert(
+      { conversation_id: conversationId, user_id: currentUserId, cleared_at: nowIso },
+      { onConflict: "conversation_id,user_id" }
+    );
+  if (error) throw new Error(error.message);
+}
+
+export async function getChatPermissionState(
+  supabase: SupabaseClient,
+  currentUserId: string,
+  otherUserId: string
+) {
+  const { data: blockRows, error: blockError } = await supabase
+    .from("user_blocks")
+    .select("blocker_id, blocked_id")
+    .in("blocker_id", [currentUserId, otherUserId])
+    .in("blocked_id", [currentUserId, otherUserId]);
+  if (blockError) throw new Error(blockError.message);
+
+  const blockedByMe = (blockRows ?? []).some(
+    (row) => row.blocker_id === currentUserId && row.blocked_id === otherUserId
+  );
+  if (blockedByMe) return "blocked_by_me" as ChatPermissionState;
+
+  const blockedByThem = (blockRows ?? []).some(
+    (row) => row.blocker_id === otherUserId && row.blocked_id === currentUserId
+  );
+  if (blockedByThem) return "blocked_by_them" as ChatPermissionState;
+
+  const { data: relationRows, error: relationError } = await supabase
+    .from("friend_requests")
+    .select("status")
+    .in("sender_id", [currentUserId, otherUserId])
+    .in("receiver_id", [currentUserId, otherUserId])
+    .eq("status", "accepted")
+    .limit(1);
+  if (relationError) throw new Error(relationError.message);
+
+  if (!relationRows?.length) return "not_friends" as ChatPermissionState;
+  return "allowed" as ChatPermissionState;
+}
+
+export async function removeFriend(
+  supabase: SupabaseClient,
+  currentUserId: string,
+  otherUserId: string
+) {
+  const { data: rows, error } = await supabase
+    .from("friend_requests")
+    .select("id, status")
+    .in("sender_id", [currentUserId, otherUserId])
+    .in("receiver_id", [currentUserId, otherUserId])
+    .eq("status", "accepted");
+  if (error) throw new Error(error.message);
+  if (!rows?.length) return;
+
+  const ids = rows.map((row) => row.id);
+  const { error: updateError } = await supabase
+    .from("friend_requests")
+    .update({ status: "removed", updated_at: new Date().toISOString() })
+    .in("id", ids);
+  if (updateError) throw new Error(updateError.message);
+}
+
+export async function blockUser(
+  supabase: SupabaseClient,
+  currentUserId: string,
+  otherUserId: string
+) {
+  const { error } = await supabase
+    .from("user_blocks")
+    .upsert({ blocker_id: currentUserId, blocked_id: otherUserId }, { onConflict: "blocker_id,blocked_id" });
+  if (error) throw new Error(error.message);
+}
+
+export function normalizeUsername(input: string) {
+  return input.trim().toLowerCase();
+}
+
+export function validateUsername(input: string) {
+  const username = normalizeUsername(input);
+  if (username.length < 3 || username.length > 30) return "Username must be 3-30 characters.";
+  if (!/^[a-z0-9_][a-z0-9_.]*[a-z0-9_]$/.test(username)) return "Only a-z, 0-9, underscore, and dot are allowed.";
+  if (username.includes("..")) return "Username cannot contain consecutive dots.";
+  return null;
+}
+
+export async function isUsernameAvailable(
+  supabase: SupabaseClient,
+  username: string,
+  currentUserId?: string
+) {
+  const normalized = normalizeUsername(username);
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("username", normalized)
+    .limit(1);
+  if (error) throw new Error(error.message);
+  if (!data?.length) return true;
+  if (currentUserId && data[0].id === currentUserId) return true;
+  return false;
+}
+
 export async function sendMessage(
   supabase: SupabaseClient,
   conversationId: string,
@@ -330,15 +487,19 @@ export async function sendMessage(
   content: string
 ) {
   const trimmed = content.trim();
-  if (!trimmed) return;
+  if (!trimmed) throw new Error("Message cannot be empty.");
 
-  const { error: messageError } = await supabase.from("messages").insert({
-    conversation_id: conversationId,
-    sender_id: senderId,
-    content: trimmed,
-    message_type: "text",
-  });
-  if (messageError) throw new Error(messageError.message);
+  const { data: inserted, error: messageError } = await supabase
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      sender_id: senderId,
+      content: trimmed,
+      message_type: "text",
+    })
+    .select("id, conversation_id, sender_id, content, message_type, is_read, created_at")
+    .single();
+  if (messageError || !inserted) throw new Error(messageError?.message || "Could not send message.");
 
   const nowIso = new Date().toISOString();
   const { error: conversationError } = await supabase
@@ -351,6 +512,7 @@ export async function sendMessage(
     })
     .eq("id", conversationId);
   if (conversationError) throw new Error(conversationError.message);
+  return inserted as Message;
 }
 
 export async function markMessagesRead(

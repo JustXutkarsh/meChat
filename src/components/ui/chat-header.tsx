@@ -1,7 +1,28 @@
 import Link from "next/link";
+import { useState } from "react";
 import { Avatar } from "@/components/avatar";
 
-export function ChatHeader({ name, username, imageUrl }: { name: string; username?: string | null; imageUrl?: string | null; }) {
+export function ChatHeader({
+  name,
+  username,
+  imageUrl,
+  onViewContact,
+  onSearchInChat,
+  onClearChat,
+  onRemoveFriend,
+  onBlockUser,
+}: {
+  name: string;
+  username?: string | null;
+  imageUrl?: string | null;
+  onViewContact?: () => void;
+  onSearchInChat?: () => void;
+  onClearChat?: () => void;
+  onRemoveFriend?: () => void;
+  onBlockUser?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
   return (
     <header className="sticky top-0 z-20 h-16 border-b border-[var(--border)] bg-[var(--surface)] px-3">
       <div className="flex h-full items-center justify-between">
@@ -13,7 +34,27 @@ export function ChatHeader({ name, username, imageUrl }: { name: string; usernam
             <p className="text-xs text-[var(--text-secondary)]">{username ? `@${username}` : "meChat"}</p>
           </div>
         </div>
-        <button className="text-[var(--text-secondary)]" aria-label="More">⋮</button>
+        <div className="relative">
+          <button
+            className="text-[var(--text-secondary)]"
+            aria-label="More"
+            onClick={() => setOpen((v) => !v)}
+          >
+            ⋮
+          </button>
+          {open ? (
+            <>
+              <button className="fixed inset-0 z-10 cursor-default" onClick={() => setOpen(false)} aria-label="Close menu" />
+              <div className="absolute right-0 top-8 z-20 w-48 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-xl">
+                <button onClick={() => { setOpen(false); onViewContact?.(); }} className="flex w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--surface-hover)]">View contact</button>
+                <button onClick={() => { setOpen(false); onSearchInChat?.(); }} className="flex w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--surface-hover)]">Search in chat</button>
+                <button onClick={() => { setOpen(false); onClearChat?.(); }} className="flex w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--surface-hover)]">Clear chat</button>
+                <button onClick={() => { setOpen(false); onRemoveFriend?.(); }} className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-red-300 hover:bg-red-500/10">Remove friend</button>
+                <button onClick={() => { setOpen(false); onBlockUser?.(); }} className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-red-300 hover:bg-red-500/10">Block user</button>
+              </div>
+            </>
+          ) : null}
+        </div>
       </div>
     </header>
   );

@@ -3,10 +3,12 @@ import clsx from "clsx";
 export function Avatar({
   name,
   imageUrl,
+  isOnline = false,
   size = "md",
 }: {
   name: string;
   imageUrl?: string | null;
+  isOnline?: boolean;
   size?: "sm" | "md";
 }) {
   const gradients = [
@@ -36,6 +38,9 @@ export function Avatar({
         <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(145deg,rgba(255,255,255,0.22),transparent_36%)]" />
         {imageUrl ? <img src={imageUrl} alt={name} className="h-full w-full object-cover" /> : <span className="text-white/90">{initials}</span>}
       </div>
+      {isOnline ? (
+        <span className={clsx("absolute bottom-0 right-0 rounded-full border-2 border-[#05060a] bg-emerald-400", size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3")} />
+      ) : null}
     </div>
   );
 }

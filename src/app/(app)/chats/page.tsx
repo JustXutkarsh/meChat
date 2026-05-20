@@ -4,6 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import { usePresence } from "@/components/presence/presence-provider";
 import { AppShell } from "@/components/ui/app-shell";
 import { Avatar } from "@/components/avatar";
 import { ChatListHeader } from "@/components/ui/chat-list-header";
@@ -19,12 +20,14 @@ import {
   rejectFriendRequest,
 } from "@/lib/chat";
 import { useSupabaseClient } from "@/lib/supabase";
+import { isUserOnline } from "@/lib/presence";
 import type { ChatListItem as TChatListItem, NotificationItem, Profile } from "@/lib/types";
 
 export default function ChatsPage() {
   const { user } = useUser();
   const supabase = useSupabaseClient();
   const router = useRouter();
+  const { presenceMap } = usePresence();
 
   const [chats, setChats] = useState<TChatListItem[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -250,7 +253,14 @@ export default function ChatsPage() {
           ) : hasLoadedOnce && filtered.length === 0 ? (
             <EmptyState title="No chaos yet" description="Start a chat and make this place less lonely." actionHref="/new-chat" actionLabel="Start a vibe" />
           ) : (
-            filtered.map((chat) => <ChatListItem key={chat.conversationId} chat={chat} currentUserId={user?.id ?? ""} />)
+            filtered.map((chat) => (
+              <ChatListItem
+                key={chat.conversationId}
+                chat={chat}
+                currentUserId={user?.id ?? ""}
+                isOnline={isUserOnline(presenceMap[chat.otherUser.id])}
+              />
+            ))
           )}
         </section>
 

@@ -85,6 +85,7 @@ export async function POST(req: Request) {
   }
 
   const dailyRoom = (await roomRes.json()) as { name: string; url: string };
+  console.info("[calls/start] Daily room created", { roomName: dailyRoom.name, hasRoomUrl: Boolean(dailyRoom.url) });
 
   const { data: call, error: callError } = await supabase
     .from("calls")

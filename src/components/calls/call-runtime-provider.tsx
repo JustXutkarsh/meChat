@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { Avatar } from "@/components/avatar";
 import { DailyCallScreen } from "@/components/calls/daily-call-screen";
 import { useSupabaseClient } from "@/lib/supabase";
@@ -28,6 +28,7 @@ export function useCallRuntime() {
 
 export function CallRuntimeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const supabase = useSupabaseClient();
   const currentUserId = user?.id;
 
@@ -105,12 +106,19 @@ export function CallRuntimeProvider({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!currentUserId) return;
+    let active = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-    const channel = supabase
+    const setup = async () => {
+      const token = await getToken({ template: "supabase" });
+      if (token) await supabase.realtime.setAuth(token);
+      if (!active) return;
+
+      channel = supabase
       .channel(`calls:${currentUserId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "calls" }, async (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "calls", filter: `receiver_id=eq.${currentUserId}` }, async (payload) => {
         const call = payload.new as CallRow;
-        if (call.receiver_id !== currentUserId || call.status !== "ringing") return;
+        if (call.status !== "ringing") return;
         const callerProfile = await fetchProfile(call.caller_id);
         setIncomingCall({ call, roomUrl: call.room_url || "", otherUser: callerProfile });
       })
@@ -143,11 +151,15 @@ export function CallRuntimeProvider({ children }: { children: React.ReactNode })
         }
       })
       .subscribe();
+    };
+
+    void setup();
 
     return () => {
-      void supabase.removeChannel(channel);
+      active = false;
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, [currentUserId, supabase, fetchProfile]);
+  }, [currentUserId, supabase, fetchProfile, getToken]);
 
   const acceptIncoming = async () => {
     if (!incomingCall) return;
@@ -235,6 +247,9 @@ export function CallRuntimeProvider({ children }: { children: React.ReactNode })
           callId={inCall.call.id}
           supabase={supabase}
           onClose={() => void handleCallClose()}
+          onCameraBlocked={() =>
+            setCallFeedback("Camera or microphone permission was blocked. Please allow access in browser settings.")
+          }
           displayName={user?.fullName || user?.username || "meChat user"}
         />
       ) : null}

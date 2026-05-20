@@ -2,25 +2,28 @@
 
 import { useEffect, useRef } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DailyCall } from "@daily-co/daily-js";
 
 export function DailyCallScreen({
   roomUrl,
   callId,
   supabase,
   onClose,
+  onCameraBlocked,
   displayName,
 }: {
   roomUrl: string;
   callId: string;
   supabase: SupabaseClient;
   onClose: () => void;
+  onCameraBlocked?: () => void;
   displayName: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let destroyed = false;
-    let frame: any = null;
+    let frame: DailyCall | null = null;
 
     const markEnded = async () => {
       await supabase
@@ -55,6 +58,7 @@ export function DailyCallScreen({
       });
       frame.on("camera-error", async () => {
         await supabase.from("calls").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", callId);
+        onCameraBlocked?.();
         onClose();
       });
 
@@ -70,7 +74,7 @@ export function DailyCallScreen({
         frame.destroy();
       }
     };
-  }, [roomUrl, callId, supabase, onClose, displayName]);
+  }, [roomUrl, callId, supabase, onClose, onCameraBlocked, displayName]);
 
   return (
     <div className="fixed inset-0 z-[110] bg-black">

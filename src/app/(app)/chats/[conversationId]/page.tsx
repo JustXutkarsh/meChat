@@ -6,6 +6,7 @@ import { useUser } from "@clerk/nextjs";
 import { AppShell } from "@/components/ui/app-shell";
 import { Avatar } from "@/components/avatar";
 import { useCallRuntime } from "@/components/calls/call-runtime-provider";
+import { usePresence } from "@/components/presence/presence-provider";
 import { ChatHeader } from "@/components/ui/chat-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -21,6 +22,7 @@ import {
   sendMessage,
 } from "@/lib/chat";
 import { useSupabaseClient } from "@/lib/supabase";
+import { formatLastSeen, isUserOnline } from "@/lib/presence";
 import type { ChatPermissionState, Message, Profile } from "@/lib/types";
 
 export default function ChatPage() {
@@ -29,6 +31,7 @@ export default function ChatPage() {
   const { user } = useUser();
   const supabase = useSupabaseClient();
   const { startVideoCall } = useCallRuntime();
+  const { presenceMap } = usePresence();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
@@ -147,6 +150,9 @@ export default function ChatPage() {
   }, [permission]);
 
   const canSend = permission === "allowed";
+  const otherPresence = otherUser ? presenceMap[otherUser.id] : null;
+  const online = isUserOnline(otherPresence);
+  const statusText = otherUser ? (online ? "online" : formatLastSeen(otherPresence?.last_seen || null)) : "meChat";
 
   const handleSend = async () => {
     const trimmed = input.trim();
@@ -189,6 +195,8 @@ export default function ChatPage() {
         <ChatHeader
           name={otherUser?.full_name || "Chat"}
           username={otherUser?.username}
+          statusText={statusText}
+          isOnline={online}
           imageUrl={otherUser?.avatar_url}
           onVideoCall={() => {
             if (!otherUser) return;

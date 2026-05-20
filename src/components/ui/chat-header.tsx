@@ -5,6 +5,8 @@ import { Avatar } from "@/components/avatar";
 export function ChatHeader({
   name,
   username,
+  statusText,
+  isOnline,
   imageUrl,
   onViewContact,
   onVideoCall,
@@ -16,6 +18,8 @@ export function ChatHeader({
 }: {
   name: string;
   username?: string | null;
+  statusText?: string | null;
+  isOnline?: boolean;
   imageUrl?: string | null;
   onViewContact?: () => void;
   onVideoCall?: () => void;
@@ -32,10 +36,10 @@ export function ChatHeader({
       <div className="flex h-full items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/chats" className="grid h-8 w-8 place-items-center rounded-full border border-[var(--border)] bg-[rgba(15,23,42,0.66)] text-[var(--text-secondary)]">←</Link>
-          <Avatar name={name} imageUrl={imageUrl} size="sm" />
+          <Avatar name={name} imageUrl={imageUrl} size="sm" isOnline={isOnline} />
           <div>
             <p className="text-sm font-semibold">{name}</p>
-            <p className="text-xs text-[var(--text-secondary)]">{username ? `@${username}` : "meChat"}</p>
+            <p className="text-xs text-[var(--text-secondary)]">{statusText || (username ? `@${username}` : "meChat")}</p>
           </div>
         </div>
         <div className="relative flex items-center gap-2">

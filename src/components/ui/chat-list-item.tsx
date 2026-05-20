@@ -4,14 +4,14 @@ import { Avatar } from "@/components/avatar";
 import { getChatPreview } from "@/lib/chat";
 import type { ChatListItem as TChatListItem } from "@/lib/types";
 
-export function ChatListItem({ chat, currentUserId }: { chat: TChatListItem; currentUserId: string }) {
+export function ChatListItem({ chat, currentUserId, isOnline }: { chat: TChatListItem; currentUserId: string; isOnline?: boolean }) {
   const preview = getChatPreview(chat, currentUserId);
   const hasUnread = chat.unreadCount > 0;
 
   return (
     <Link href={`/chats/${chat.conversationId}`} className={`group relative mx-3 my-2 flex items-center gap-3 overflow-hidden rounded-3xl border px-3 py-3 transition duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:bg-[rgba(30,41,59,0.72)] ${hasUnread ? "border-[rgba(139,92,246,0.28)] bg-[rgba(15,23,42,0.7)]" : "border-[rgba(148,163,184,0.1)] bg-[rgba(15,23,42,0.56)]"}`}>
       {hasUnread ? <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-[linear-gradient(180deg,#8B5CF6,#EC4899)]" /> : null}
-      <Avatar name={chat.otherUser.full_name || chat.otherUser.username || "User"} imageUrl={chat.otherUser.avatar_url} />
+      <Avatar name={chat.otherUser.full_name || chat.otherUser.username || "User"} imageUrl={chat.otherUser.avatar_url} isOnline={isOnline} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate text-[15px] font-semibold text-[var(--text-primary)]">{chat.otherUser.full_name || "User"}</p>
